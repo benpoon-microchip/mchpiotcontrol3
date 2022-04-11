@@ -145,7 +145,7 @@
 
             $.ajax({
                 type: 'GET',
-                url: `https://7s1638dgmi.execute-api.us-east-2.amazonaws.com/mchpiot-deleteuserdevices?thingName=${thingName}`,
+                url: `https://7s1638dgmi.execute-api.us-east-2.amazonaws.com/deleteuserdevices?thingName=${thingName}`,
                 contentType: "application/json",
                 headers: {
                     "Auth-Token": userVariable.idToken
@@ -195,7 +195,7 @@
             //get user devices
             $.ajax({
                 type: 'GET',
-                url: 'https://7s1638dgmi.execute-api.us-east-2.amazonaws.com/mchpiot-getuserdevices',
+                url: 'https://7s1638dgmi.execute-api.us-east-2.amazonaws.com/getuserdevices',
                 contentType: "application/json",
                 headers: {
                     "Auth-Token": userVariable.idToken
@@ -272,7 +272,7 @@
             $("#registerButton").prop("disabled", true);
             $.ajax({
                 type: 'POST',
-                url: 'https://7s1638dgmi.execute-api.us-east-2.amazonaws.com/mchpiot-registerdevice',
+                url: 'https://7s1638dgmi.execute-api.us-east-2.amazonaws.com/registerdevice',
                 contentType: "application/json",
                 dataType: 'json',
                 data: JSON.stringify(registrationData),
