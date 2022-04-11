@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+
+<html lang="en-US">
+
+<head>
+    <title>MCHP IoT device registration</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="shortcut icon" type="image/x-icon" href="favicon.ico">
+    <link rel="stylesheet" href="stylesheets/styleSheetStart.css">
+
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+    <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
+
+    <script src="resources/cognito-dist/amazon-cognito-auth.min.js"></script>
+    <script src="resources/aws-sdk.min.js"> </script>
+    <script src="resources/bundle.js"></script>
+    <link rel="stylesheet" type="text/css"
+        href="//cdnjs.cloudflare.com/ajax/libs/cookieconsent2/3.1.0/cookieconsent.min.css" />
+    <script src="//cdnjs.cloudflare.com/ajax/libs/cookieconsent2/3.1.0/cookieconsent.min.js"></script>
+
+    <script>
+        window.addEventListener("load", function () {
+            window.cookieconsent.initialise({
+                "palette": {
+                    "popup": {
+                        "background": "#3c404d",
+                        "text": "#d6d6d6"
+                    },
+                    "button": {
+                        "background": "#8bed4f"
+                    }
+                },
+                "content": {
+                    "href": "https://www.microchip.com/about-us/legal-information/cookies"
+                }
+            })
+        });
+    </script>
+    <script type="text/javascript">
+        //handle UI for sign  in
+        var userVariable = {}
+        var auth;
+
+        function showSignedIn(session) {
+            //$("#resultDiv").html("You have signed in")
+            idToken = session.getIdToken().getJwtToken();
+            if (idToken) {
+                userVariable.idToken = JSON.parse(JSON.stringify(idToken))
+                var payload = idToken.split('.')[1];
+                var tokenobj = JSON.parse(atob(payload));
+                userVariable.email = JSON.parse(JSON.stringify(tokenobj.email))
+                userVariable.principal = AWS.config.credentials.identityId;
+                userVariable.emailVerified = tokenobj.email_verified
+            } else {
+                console.error("no idToken received for user")
+                auth.signOut();
+                showSignedOut();
+            }
+            //console.log(userVariable)
+            $("#emailDiv").html(userVariable.email)
+            $("#signInButton").html("Sign Out")
+            $("#deviceDetails").prop("hidden", false)
+            $("#deviceReg").prop("hidden", false)
+            refreshDevice()
+        }
+        //handle UI for sign  out
+        function showSignedOut() {
+            var userVariable = {}
+            $("#emailDiv").html("")
+        }
+        // Initialize a cognito auth object.
+        function initCognitoSDK() {
+            AWS.config.region = 'us-east-1'
+            var authData = {
+                ClientId: "5kvg1sktim85vqn4n4s7d8uu42", // Your client id here
+                AppWebDomain: "mchpiotvoice.auth.us-east-1.amazoncognito.com",
+                TokenScopesArray: ["email",
+                    "openid"
+                ], // e.g.['phone', 'email', 'profile','openid', 'aws.cognito.signin.user.admin'],
+                RedirectUriSignIn: "https://microchiptech.github.io/mchpiotvoice/admin.html",
+                RedirectUriSignOut: "https://microchiptech.github.io/mchpiotvoice/admin.html",
+                //RedirectUriSignIn: "http://localhost:5500/mchpiotvoice/admin.html",
+                //RedirectUriSignOut: "http://localhost:5500/mchpiotvoice/admin.html",
+                UserPoolId: "us-east-1_hRpjlFfmz", // Your user pool id here
+            };
+            var login = {};
+            var auth = new AmazonCognitoIdentity.CognitoAuth(authData);
+            auth.userhandler = {
+                onSuccess: function (result) {
+                    //console.info("Sign in success")
+                    console.info("IDToken: " + result.getIdToken().getJwtToken())
+                    $("#signInButton").html("<font color=\"red\">Signing in ...</font>")
+                    history.pushState({}, "", "/mchpiotvoice/admin.html"); //clear token displayed in URL for aesthetics
+                    var loginKey = 'cognito-idp.' + AWS.config.region + '.amazonaws.com/' + authData[
+                        'UserPoolId'];
+                    login[loginKey] = result.getIdToken().getJwtToken();
+                    AWS.config.credentials = new AWS.CognitoIdentityCredentials({
+                        IdentityPoolId: "us-east-1:7e2231a1-3016-4723-803c-13ed53a778cb", // Identity pool ID
+                        Logins: login
+                    });
+                    AWS.config.credentials.refresh((error) => {
+                        $("#signInButton").html("Sign Out")
+                        if (error) {
+                            console.error(error);
+                            auth.signOut();
+                            showSignedOut();
+                        } else {
+                            showSignedIn(result)
+                        }
+                    });
+                },
+                onFailure: function (err) {
+                    console.error("Error! in initCognitoSDK");
+                }
+            };
+            return auth;
+        }
+
+        // Perform user operations.
+        function userButton(auth) {
+            var state = document.getElementById('signInButton').innerHTML;
+            if (state === "Sign Out") {
+                document.getElementById("signInButton").innerHTML = "Sign In";
+                auth.signOut();
+                showSignedOut();
+            } else {
+                auth.getSession();
+            }
+        }
+
+        function removeDevice(thingName,userEmail) {
+
+            $("#queryResultDiv").html(`<div class="alert alert-success alert-dismissible">
+                                    <a href="#" class="close fa fa-times-circle-o" data-dismiss="alert" aria-label="close"/>
+                                    removing device
+                                  </div>`)
+            $("#queryResultDiv").show()
+            $("#queryResultDiv").delay(1000).fadeOut(400);
+
+            $.ajax({
+                type: 'GET',
+                url: `https://uzejek1rj0.execute-api.ap-south-1.amazonaws.com/mchpiot-deleteuserdevices?thingName=${thingName}&userEmail=${userEmail}`,
+                contentType: "application/json",
+                headers: {
+                    "Auth-Token": userVariable.idToken
+                },
+                success: function (data) {
+                    $("#queryResultDiv").html(`<div class="alert alert-success alert-dismissible">
+                                    <a href="#" class="close fa fa-times-circle-o" data-dismiss="alert" aria-label="close"/>
+                                    device removed
+                                  </div>`)
+                    $("#queryResultDiv").show()
+                    $("#queryResultDiv").delay(1000).fadeOut(400);
+
+                    refreshDevice();
+                },
+                complete: function () {
+                },
+                error: function (XMLHttpRequest, textStatus, errorThrown) {
+                    console.error("removeDevice failed. ", textStatus)
+                }
+            })
+        }
+
+        function refreshTable(data) {
+            if ($.isEmptyObject(data)) {
+                $('#deviceTable').hide();
+                return;
+            } else {
+                $('#deviceTable').show();
+            }
+            $('#deviceTable tbody').empty()
+            data.forEach(function (thingEntry) {
+                $('#deviceTable tbody').append(`<tr class="child">
+                                                  <td>${thingEntry[0]}</td>
+                                                  <td>${thingEntry[1]}</td>
+                                                  <td>${thingEntry[2]}</td>
+                                                  <td>  
+                                                    <button type="button" class="close" onclick=removeDevice("${thingEntry[1]}","${thingEntry[0]}")>
+                                                        <span class="fa fa-trash-o" />
+                                                    </button>  
+                                                  </td>
+                                                </tr>`);
+            })
+        }
+
+        function refreshDevice() {
+            
+            $("#queryResultDiv").html(`<div class="alert alert-success alert-dismissible">
+                                    <a href="#" class="close fa fa-times-circle-o" data-dismiss="alert" aria-label="close"/>
+                                    Refreshing Data
+                                  </div>`)
+                    $("#queryResultDiv").show()
+                    $("#queryResultDiv").delay(1000).fadeOut(400);
+
+            //get user devices
+            $.ajax({
+                type: 'GET',
+                url: 'https://uzejek1rj0.execute-api.ap-south-1.amazonaws.com/mchpiot-getuserdevices',
+                contentType: "application/json",
+                headers: {
+                    "Auth-Token": userVariable.idToken
+                },
+                success: function (data) {
+                    $("#queryResultDiv").html(`<div class="alert alert-success alert-dismissible">
+                                    <a href="#" class="close fa fa-times-circle-o" data-dismiss="alert" aria-label="close"/>
+                                    data refreshed
+                                  </div>`)
+                    $("#queryResultDiv").show()
+                    $("#queryResultDiv").delay(1000).fadeOut(400);
+                    refreshTable(data);
+                },
+                complete: function () {
+                    $("#regResultDiv").html("")
+                },
+                error: function (XMLHttpRequest, textStatus, errorThrown) {
+                    console.error("refreshDevice failed. ", errorThrown)
+                    if ("Unauthorized" === errorThrown) {
+                        auth.signOut()
+                    }
+                }
+            })
+        }
+
+        function onLoad() {
+            $("#regSerial").val("")
+            $("#regFriendlyName").val("")
+            $("#regEmail").val("")
+            $('#deviceTable').hide();
+
+            $(document).popover({
+                selector: '[data-toggle=popover]',
+                trigger: 'focus',
+                animation: true
+            });
+
+            //refresh page after a minute of inactivity
+            var time = new Date().getTime();
+            $(document.body).bind("mousemove keypress", function (e) {
+                time = new Date().getTime();
+            });
+
+            function refresh() {
+                if (new Date().getTime() - time >= 300000)
+                    window.location.reload(true);
+                else
+                    setTimeout(refresh, 10000);
+            }
+            setTimeout(refresh, 10000);
+
+            auth = initCognitoSDK();
+            document.getElementById("signInButton").addEventListener("click", function () {
+                userButton(auth);
+            });
+            var curUrl = window.location.href;
+            auth.parseCognitoWebResponse(curUrl);
+        }
+
+        function registerDevice() {
+            var registrationData = {}
+            if (false === $("#registrationForm")[0].checkValidity()) {
+                $("#regResultDiv").html(`<div class="alert alert-warning alert-dismissible">
+                        <a href="#" class="close fa fa-times-circle-o" data-dismiss="alert" aria-label="close"/>
+                        Enter a valid serial number and Name
+                      </div>`)
+                $("#regResultDiv").show()
+                return;
+            }
+            registrationData.deviceSerial = $("#regSerial").val().trim();
+            registrationData.deviceFriendlyName = $("#regFriendlyName").val().trim()
+            registrationData.userEmail = $("#regEmail").val().trim()
+
+            $("#regResultDiv").html("<font color=\"green\">Requesting...</font>");
+            $("#regResultDiv").show()
+            $("#registerButton").prop("disabled", true);
+            $.ajax({
+                type: 'POST',
+                url: 'https://uzejek1rj0.execute-api.ap-south-1.amazonaws.com/mchpiot-registerdevice',
+                contentType: "application/json",
+                dataType: 'json',
+                data: JSON.stringify(registrationData),
+                headers: {
+                    "Auth-Token": userVariable.idToken
+                },
+                success: function (data) {
+                    console.info("post successful. ")
+                    $("#regResultDiv").html(`<div class="alert alert-success alert-dismissible">
+                                    <a href="#" class="close fa fa-times-circle-o" data-dismiss="alert" aria-label="close"/>
+                                    <strong>Success!!</strong> Registered to ${userVariable.email}
+                                  </div>`)
+                    $("#regResultDiv").show()
+                    $("#regResultDiv").delay(1500).fadeOut(400);
+                    refreshDevice();
+                },
+                complete: function () {
+                    $("#regSerial").val("")
+                    $("#regFriendlyName").val("")
+                    $("#regEmail").val("")
+                    $("#registerButton").prop("disabled", false);
+                },
+                error: function (XMLHttpRequest, textStatus, errorThrown) {
+                    console.error("Registration Failed ", errorThrown)
+
+                    if ("Not Found" === errorThrown) {
+                        $("#regResultDiv").html(
+                            `Registration request failed. <font color="red">Device not found</font>`
+                        );
+                        $("#regResultDiv").show()
+                        return;
+                    } else { /*Any other errors*/
+                        $("#regResultDiv").html(
+                            `Registration request failed. Please retry -- <font color="red"><b>${textStatus} : ${errorThrown} </b></font>`
+                        );
+                        $("#regResultDiv").show()
+                        //auth.signOut()
+                    }
+                }
+            });
+        }
+    </script>
+</head>
+
+<body onload="onLoad()">
+    <div class="container-fluid pl-5 pr-5">
+        <div class="row">
+            <div class="col mt-4 mb-4">
+                <a href="/mchpiotvoice/admin.html"> <img src="resources/img/mchpLogo.png" alt="Logo"
+                        class="img-responsive" align=left></a>
+                <h1 class="text-md-center  mt-5" style="font-size: 5.0vmin;">
+                    Microchip IoT: Device admin page for voice control
+                </h1>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-sm-7 mr-5"></div>
+            <div class="col-sm-4 userEmail" id="emailDiv"></div>
+        </div>
+        <div class="row mb-5" id="deviceReg" hidden="true">
+            <div class="col-sm-4" style="background-color:lavenderblush">
+                <p class="text-center  mt-3 h5">Register a device as admin </p><br />
+                <form id="registrationForm">
+                    <input type="email" class="form-control input-sm" id="regEmail" placeholder="User Email"
+                        autocomplete="off" required="required" style="box-shadow: none; border:0" />
+                    <input type="text" class="form-control input-sm" style="box-shadow: none; border:0" id="regSerial"
+                        placeholder="Thing Name" autocomplete="off" required="required" pattern="[a-zA-Z0-9]{1,40}" />
+                    <input type="text" class="form-control input-sm" id="regFriendlyName" placeholder="Friendly name"
+                        autocomplete="off" required="required" style="box-shadow: none; border:0"
+                        pattern="[a-zA-Z0-9 ]{1,30}" />
+                </form>
+                <div class="text-center mt-3">
+                    <button type="button" class="btn btn-primary" id="registerButton"
+                        onclick="registerDevice()">Register</button>
+                </div>
+            </div>
+            <div id="regResultDiv"></div>
+        </div>
+        <div class="row" id="deviceDetails" hidden="true">
+            <div class="col-sm-1"></div>
+            <div class="col-sm-10" style="background-color: #d6d8db;">
+                <p class="text-center mt-3 h5 "> Registered devices </p>
+                <div class="ml-2 mr-2 table-responsive table-sm table-bordered ">
+                    <table class="table table-hover" id="deviceTable">
+                        <thead>
+                            <tr>
+                                <th scope="col" class="font-weight-normal text-center">User Name</th>
+                                <th scope="col" class="font-weight-normal text-center">Thing Name</th>
+                                <th scope="col" class="font-weight-normal text-center">Friendly Name</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="text-right mt-3 mb-3">
+                    <button type="button" class="btn btn-link top-left-text" onclick="refreshDevice()"><i
+                            class="fa fa-refresh"></i></button>
+                </div>
+                <div id="queryResultDiv" class="top-right-text"></div>
+            </div>
+        </div>
+
+        <div class="row" id="startButtons">
+            <div class="col"></div>
+            <div class="button">
+                <a class="nav-tabs" id="signInButton" href="javascript:void(0)" title="Sign in">SignIn / SignUp</a>
+                <div id="resultDiv"></div>
+            </div>
+            <div class="col"></div>
+        </div>
+    </div>
+    <div class="footer" id="pageFooter">
+        contact <a href="https://support.microchip.com" target="_blank">Microchip support</a> to report issues
+        <p>v1.0.33</p>
+    </div>
+</body>
+
+</html>
