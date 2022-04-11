@@ -96,7 +96,7 @@
                     //console.info("Sign in success")
                     console.info("IDToken: " + result.getIdToken().getJwtToken())
                     $("#signInButton").html("<font color=\"red\">Signing in ...</font>")
-                    history.pushState({}, "", "/mchpiotcontrol/"); //clear token displayed in URL for aesthetics
+                    history.pushState({}, "", "/mchpiotcontrol3/"); //clear token displayed in URL for aesthetics
                     var loginKey = 'cognito-idp.' + AWS.config.region + '.amazonaws.com/' + authData[
                         'UserPoolId'];
                     login[loginKey] = result.getIdToken().getJwtToken();
@@ -320,7 +320,7 @@
     <div class="container-fluid pl-5 pr-5">
         <div class="row">
             <div class="col mt-4 mb-4">
-                <a href="/mchpiotcontrol"> <img src="resources/img/mchpLogo.png" alt="Logo" class="img-responsive"
+                <a href="/mchpiotcontrol3"> <img src="resources/img/mchpLogo.png" alt="Logo" class="img-responsive"
                         align=left></a>
                 <h1 class="text-md-center  mt-5" style="font-size: 5.0vmin;">
                     Microchip IoT: DevBoard registration page for voice control
