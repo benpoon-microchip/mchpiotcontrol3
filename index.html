@@ -177,10 +177,8 @@
             }
             $('#deviceTable tbody').empty()
             Object.keys(data).forEach(function (thingName) {
-                friendlyName = data[thingName];
                 $('#deviceTable tbody').append(`<tr class="child">
                                                   <td>${thingName}</td>
-                                                  <td>${friendlyName}</td>
                                                   <td>  
                                                     <button type="button" class="close" onclick=removeDevice("${thingName}")>
                                                         <span class="fa fa-trash-o" />
@@ -223,7 +221,6 @@
 
         function onLoad() {
             $("#regSerial").val("")
-            $("#regFriendlyName").val("")
             $('#deviceTable').hide();
 
             $(document).popover({
@@ -265,7 +262,6 @@
                 return;
             }
             registrationData.deviceSerial = $("#regSerial").val().trim();
-            registrationData.deviceFriendlyName = $("#regFriendlyName").val().trim()
 
             $("#regResultDiv").html("<font color=\"green\">Requesting...</font>");
             $("#regResultDiv").show()
@@ -291,7 +287,6 @@
                 },
                 complete: function () {
                     $("#regSerial").val("")
-                    $("#regFriendlyName").val("")
                     $("#registerButton").prop("disabled", false);
                 },
                 error: function (XMLHttpRequest, textStatus, errorThrown) {
@@ -339,7 +334,6 @@
                         <thead>
                             <tr>
                                 <th scope="col" class="font-weight-normal text-center">Thing Name</th>
-                                <th scope="col" class="font-weight-normal text-center">Friendly Name</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -357,9 +351,6 @@
                 <form id="registrationForm">
                     <input type="text" class="form-control input-sm" style="box-shadow: none; border:0" id="regSerial"
                         placeholder="Thing Name" autocomplete="off" required="required" pattern="[a-zA-Z0-9]{1,40}" />
-                    <input type="text" class="form-control input-sm" id="regFriendlyName" placeholder="Friendly name for voice command"
-                        autocomplete="off" required="required" style="box-shadow: none; border:0"
-                        pattern="[a-zA-Z0-9 ]{1,30}" />
                 </form>
                 <div class="text-center mt-3">
                     <button type="button" class="btn btn-primary" id="registerButton"
